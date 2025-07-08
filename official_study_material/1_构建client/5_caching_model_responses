@@ -1,0 +1,39 @@
+import asyncio
+import tempfile
+import os
+
+from autogen_core.models import UserMessage
+from autogen_ext.cache_store.diskcache import DiskCacheStore
+from autogen_ext.models.cache import CHAT_CACHE_VALUE_TYPE, ChatCompletionCache
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from diskcache import Cache
+
+model_client = OpenAIChatCompletionClient(
+    model="gemini-1.5-flash-8b",
+    api_key=os.getenv("GEMINI_API_KEY"),
+)
+
+
+async def main() -> None:
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Initialize the original client
+
+        # Then initialize the CacheStore, in this case with diskcache.Cache.
+        # You can also use redis like:
+        # from autogen_ext.cache_store.redis import RedisStore
+        # import redis
+        # redis_instance = redis.Redis()
+        # cache_store = RedisCacheStore[CHAT_CACHE_VALUE_TYPE](redis_instance)
+        cache_store = DiskCacheStore[CHAT_CACHE_VALUE_TYPE](Cache(tmpdirname))
+        cache_client = ChatCompletionCache(model_client, cache_store)
+
+        response = await cache_client.create([UserMessage(content="Hello, how are you?", source="user")])
+        print(response)  # Should print response from OpenAI
+        response = await cache_client.create([UserMessage(content="Hello, how are you?", source="user")])
+        print(response)  # Should print cached response
+
+        await model_client.close()
+        await cache_client.close()
+
+
+asyncio.run(main())
